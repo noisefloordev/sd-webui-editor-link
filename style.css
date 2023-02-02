@@ -1,0 +1,24 @@
+/* The images are huge and not very important with the way I work, and I'm tired
+ * of spending my life scrolling up and down a million times between the sliders
+ * and the "generate" button. */
+#mode_img2img
+{
+    height: 200px;
+    overflow: scroll;
+}
+
+button.editor-link-enabled-toggle
+{
+    color: #fff;
+    background: #3e4857;
+    border-radius: 8px !important;
+    padding: 7px 8px;
+    font-weight: bold;
+    font-size: 16px;
+    min-width: auto; /* override weird style */
+}
+
+button.editor-link-enabled-toggle[data-enabled]
+{
+    background: #7089b0;
+}

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<script src="editor-link-ps.js"></script>    
+
+<style>
+body {
+    padding: 8px;
+}
+</style>
+
+<body>
+<sp-body>
+    <sp-action-button variant=primary class=send-image>Send</sp-action-button>
+    <sp-picker class=export-target placeholder="Make a selection..." style="width: 160px">
+        <sp-menu slot="options">
+            <sp-menu-item data-type=inpaint selected> Inpaint</sp-menu-item>
+            <sp-menu-item data-type=img2img> img2img</sp-menu-item>
+            <sp-menu-item data-type=controlnet0> ControlNet #0</sp-menu-item>
+            <sp-menu-item data-type=controlnet1> ControlNet #1</sp-menu-item>
+        </sp-menu>
+    </sp-picker>
+</sp-body>

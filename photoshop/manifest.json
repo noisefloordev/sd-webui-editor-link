@@ -1,0 +1,43 @@
+{
+    "id": "sd-webui-editor-link",
+    "name": "sd-webui-editor-link",
+    "version": "1.0.0",
+    "main": "editor-link-ps.html",
+    "host": { "app": "PS", "minVersion": "24.3.0" },
+    "manifestVersion": 5,
+    "requiredPermissions": {
+        "localFileSystem": "fullAccess",
+        "network": {
+            "domains": ["http://localhost", "ws://localhost"]
+        }
+    },
+
+    "entrypoints": [{
+        "type": "panel",
+        "id": "vanilla",
+        "minimumSize": { "width": 250, "height": 45 },
+        "maximumSize": { "width": 250, "height": 45 },
+        "preferredDockedSize": { "width": 250, "height": 45 },
+        "preferredFloatingSize": { "width": 250, "height": 45 },
+        "icons": [{
+            "width": 23,
+            "height": 23,
+            "path": "icons/editor-link.png",
+            "scale": [1, 2],
+            "theme": ["all"],
+            "species": [
+                "generic"
+            ]
+        }],
+        "label": {
+            "default": "Editor Link"
+        }
+    }],
+    "icons": [{
+        "width": 23,
+        "height": 23,
+        "path": "icons/editor-link.png",
+        "scale": [1, 2],
+        "theme": ["all"]
+    }]
+}
