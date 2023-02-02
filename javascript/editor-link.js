@@ -121,24 +121,6 @@ function getCurrentTab()
     return document.querySelector("#tabs > .tab-nav > button.selected").innerText;
 }
 
-// Find the button used to select the given main UI tab.
-function findMainTabButton(label)
-{
-    for(let node of document.querySelectorAll("#tabs > .tab-nav > button"))
-    {
-        if(node.innerText == label)
-            return node;
-    }
-    return null;
-}
-
-function selectImg2ImgTab()
-{
-    // Find the img2img tab button.
-    let button = findMainTabButton("img2img");
-    button.click();
-}
-
 // Open the ControlNet foldout and select the given unit.
 function openControlNetFoldout(doc, currentTab, unit)
 {
@@ -361,7 +343,7 @@ class EditorLink
         // If we're not on the txt2img or img2img tab, switch to img2img.
         if(currentTab != "txt2img" && currentTab != "img2img")
         {
-            selectImg2ImgTab();
+            switch_to_img2img();
             currentTab = "img2img";
         }
 
@@ -392,7 +374,7 @@ class EditorLink
 
         // switch_to_img2img_tab is in ui.js.  If we're on img2img, switch to the inner img2img tab.
         // The image widgets may not be initialized until we do this.
-        if(currentTab == "img2img" && targetTab[target])
+        if(currentTab == "img2img" && targetTab[target] != null)
             switch_to_img2img_tab(targetTab[target]);
 
         // If the target is a ControlNet unit, open the controlnet foldout.  This makes sure that
