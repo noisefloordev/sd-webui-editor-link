@@ -255,8 +255,8 @@ class SDSync:
     def send_image(self, image_path, *, new_document=True):
         log.info(f'Send image: {image_path}')
 
-        path = webpath(str(image_path))
-        url = urllib.parse.urljoin(self.local_url, path)
+        path = str(image_path)
+        url = urllib.parse.urljoin(self.local_url, webpath(path))
 
         self.broadcast_message_threaded({
             'action': 'load-image',

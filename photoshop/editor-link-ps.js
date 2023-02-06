@@ -1,5 +1,6 @@
 const { app, constants, core } = require("photoshop");
 const { entrypoints, storage } = require('uxp');
+const fs = require('fs');
 const psAction = require("photoshop").action;
 
 const DefaultPort = 7860;
@@ -208,6 +209,55 @@ async function saveDocumentToTemp(doc, filename)
     return outputImage;
 }
 
+
+async function readUrlToFile(url)
+{
+    // If the URL points to 127.0.0.1 use localhost instead, since putting "127.0.0.1"
+    // in the manifest doesn't work.
+    url = url.replace("://127.0.0.1", "://localhost");
+
+    // Fetch the file.
+    let resp = await fetch(url);
+    if(!resp.ok)
+        throw new Error(`Error reading ${url}: ${resp.status} ${resp.statusText}`);
+
+    // First, find any existing "import-123.png" files.  We can't use the same filename
+    // as one that's already open, or it'll cause the open document to be replaced.
+    let firstIdx = 1;
+    for(let doc of app.documents)
+    {
+        let { title } = doc;
+        let match = title.match(/import-(\d+)/);
+        if(!match)
+            continue;
+
+        let idx = parseInt(match[1]);
+        firstIdx = Math.max(firstIdx, idx+1);
+    }
+    let imgData = await resp.arrayBuffer();
+    // Write the image to a file that we can access directly.
+    let tempFolder = await storage.localFileSystem.getTemporaryFolder();
+    let inputFile = await tempFolder.createFile(`import-${firstIdx}.png`, { overwrite: true });
+    await inputFile.write(imgData, {
+        format: storage.formats.binary,
+    });
+
+    return inputFile;
+
+}
+
+async function openFile(file)
+{
+    let token = await storage.localFileSystem.createSessionToken(file);
+
+    let command = {
+        "_obj": "open",
+        "null": { "_kind":"local", "_path": token },
+    };
+
+    await psAction.batchPlay([command], {});
+}        
+
 // Read version.txt.  This is created when the UXP package is created.
 async function getCurrentVersion()
 {
@@ -285,12 +335,8 @@ class SDEditorLinkPhotoshop
                 if(target != "editor")
                     return;
 
-                // If localPath is available, we'd like to open the file directly, but Photoshop's
-                // broken SDK doesn't want us accessing the local filesystem.  There's a
-                // localFileSystem: fullAccess setting in manifest.json, but no documentation about
-                // how to use it.
                 this.executeAsModal(async() => {
-                    await this.importFromUrl(url, { newDocument });
+                    await this.importFromUrl({ url, localPath, newDocument });
                 }, { undoName: "Import inpaint" });
 
                 break;
@@ -369,61 +415,44 @@ class SDEditorLinkPhotoshop
         }, options);
     }
 
-    importFromUrl = async(url, { newDocument }) =>
+    importFromUrl = async({ url, localPath, newDocument }) =>
     {
         let mainDoc = app.activeDocument;
     
-        // If the URL points to 127.0.0.1 use localhost instead, since putting "127.0.0.1"
-        // in the manifest doesn't work.
-        url = url.replace("://127.0.0.1", "://localhost");
+        // If we don't have an active document, always create a new one.
+        if(mainDoc == null)
+            newDocument = true;
 
-        // Fetch the file.
-        let resp = await fetch(url);
-        if(!resp.ok)
-            throw new Error(`Error reading ${url}: ${resp.status} ${resp.statusText}`);
-
-        // We have to work around lots of Photoshop nastiness.  There's no way to import a
-        // file directly into a document, there's no way to access our own files on the
-        // filesystem ("localFileSystem: fullAccess" seems to be placebo, there's no API
-        // to get entries using it), there's no way to open a file without it being associated
-        // with the file itself (so we don't treat the file as the temporary file we have
-        // to create).
-        //
-        // If you're making an API for an image editing application, "import one of the user's
-        // image files" is page 1, feature 1.  How is this such a fucking mess?
-        //
-        // First, find any existing "import-123.png" files.  We can't use the same filename
-        // as one that's already open, or it'll cause the open document to be replaced.
-        let firstIdx = 1;
-        for(let doc of app.documents)
+        let inputFile;
+        let deleteAfter = false;
+        let filename;
+        if(localPath != null)
         {
-            let { title } = doc;
-            let match = title.match(/import-(\d+)/);
-            if(!match)
-                continue;
-
-            let idx = parseInt(match[1]);
-            firstIdx = Math.max(firstIdx, idx+1);
+            filename = localPath.replace(/\\/g, "/");
+            inputFile = await storage.localFileSystem.getEntryWithUrl("file:" + localPath);
         }
-            
-        let imgData = await resp.arrayBuffer();
-    
-        // Write the image to a file that we can access directly.
-        let tempFolder = await storage.localFileSystem.getTemporaryFolder();
-        let inputFile = await tempFolder.createFile(`import-${firstIdx}.png`, { overwrite: true });
-        await inputFile.write(imgData, {
-            format: storage.formats.binary,
-        });
+        else
+        {
+            inputFile = await readUrlToFile(url);
+            filename = (new URL(url)).pathname;
+            deleteAfter = true;
+        }
+
+        // Remove the path component from the filename.
+        filename = filename.replace(/.*\//, "");
 
         // Open the file as a document.  It would be cleaner and cause less UI flicker to
         // just import it directly into the document, but I haven't found a way to do that.
         // The only API seems to be placing (drop an image onto the document), which is
         // completely broken for scripting.
         let importDoc = await app.open(inputFile);
-        await inputFile.delete();
 
-        // If we want a new document or if we didn't have a document to begin with, stop here.
-        if(newDocument || mainDoc == null)
+        // Only delete the file if it's a temp file.
+        if(deleteAfter)
+            await inputFile.delete();
+
+        // If we want a new document, stop here.
+        if(newDocument)
             return;
     
         // Import the layers (there should be only one) into the original document.
@@ -431,6 +460,13 @@ class SDEditorLinkPhotoshop
     
         // Discard the temporary document.
         await importDoc.closeWithoutSaving();
+
+        // Rename the layer to the name of the document.  There's usually one one layer, since
+        // we're typically importing a PNG.  Note that duplicateLayers returns the source layers
+        // instead of the new layers, so we have to use the selection instead.
+        let layerName = filename.replace(/\.[^.]*/, ""); // remove extension
+        for(let layer of mainDoc.activeLayers)
+            layer.name = layerName;
     }
 
     // Export the whole current document to inpaint.  The selected layer is used as the
